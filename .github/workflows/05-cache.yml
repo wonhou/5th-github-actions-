@@ -1,0 +1,31 @@
+name: 05. cache 기본 사용
+on:
+  workflow_dispatch
+
+jobs:
+  with-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 캐시 (workflow 파일 기반)
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: ~/cached-data
+          key: ${{ runner.os }}-mydata-${{ hashFiles('.github/workflows/05-cache.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-mydata-
+
+      - name: 디렉토리 준비
+        run: mkdir -p ~/cached-data
+
+      - name: 캐시 결과
+        run: |
+          echo "cache-hit: ${{ steps.cache.outputs.cache-hit }}"
+          ls -al ~/cached-data || echo "비어있음"
+
+      - name: 데이터 추가
+        run: |
+          echo "이번 실행 데이터: $(date)" > ~/cached-data/data.txt
+          ls -al ~/cached-data

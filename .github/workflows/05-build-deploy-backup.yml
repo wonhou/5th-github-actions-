@@ -1,0 +1,75 @@
+name: Build Deploy Backup
+on:
+  workflow_dispatch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      artifact_name: ${{ steps.meta.outputs.artifact_name }}
+      file_count: ${{ steps.meta.outputs.file_count }}
+    steps:
+      - name: 빌드 파일 생성
+        run: |
+          mkdir dist
+          echo "JAR binary content" > dist/app.jar
+          echo "config: production" > dist/config.yml
+          echo "# Release Note" > dist/README.md
+
+      - name: 메타데이터 설정
+        id: meta
+        run: |
+          echo "artifact_name=release-${{ github.run_number }}" >> $GITHUB_OUTPUT
+          echo "file_count=3" >> $GITHUB_OUTPUT
+
+      - name: Artifact 업로드
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact_name }}
+          path: dist/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 다운로드
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: ./deploy-stage
+
+      - name: 배포 시뮬레이션
+        run: |
+          echo "배포할 파일 수: ${{ needs.build.outputs.file_count }}"
+          echo "=== 배포 파일 목록 ==="
+          ls -al ./deploy-stage
+          echo "배포 완료"
+
+  backup:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: 다운로드
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.build.outputs.artifact_name }}
+          path: ./backup-stage
+
+      - name: 백업 시뮬레이션
+        run: |
+          echo "=== 백업 파일 목록 ==="
+          ls -al ./backup-stage
+          echo "백업 완료: $(date)"
+
+  summary:
+    needs: [build, deploy, backup]
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    steps:
+      - run: |
+          echo "=== 워크플로우 요약 ==="
+          echo "Artifact: ${{ needs.build.outputs.artifact_name }}"
+          echo "파일 수: ${{ needs.build.outputs.file_count }}"
+          echo "Build: ${{ needs.build.result }}"
+          echo "Deploy: ${{ needs.deploy.result }}"
+          echo "Backup: ${{ needs.backup.result }}"
